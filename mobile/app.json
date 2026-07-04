@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Messenger",
+    "slug": "messenger-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.messenger"
+    },
+    "android": {
+      "package": "com.yourcompany.messenger",
+      "permissions": ["INTERNET", "CAMERA", "READ_EXTERNAL_STORAGE"]
+    }
+  }
+}

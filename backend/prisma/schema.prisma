@@ -1,0 +1,75 @@
+// Prisma schema for the messenger app.
+// Run `npx prisma migrate dev` after setting DATABASE_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  phoneNumber   String   @unique
+  displayName   String
+  avatarUrl     String?
+  passwordHash  String?  // optional if using OTP-only auth
+  countryCode   String   // e.g. "ZA", "US", "IN" - useful for regional routing/analytics
+  lastSeenAt    DateTime @default(now())
+  isOnline      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  participations ConversationParticipant[]
+  sentMessages   Message[]                 @relation("SentMessages")
+  contacts       Contact[]                 @relation("OwnerContacts")
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  owner       User     @relation("OwnerContacts", fields: [ownerId], references: [id])
+  ownerId     String
+  contactUserId String
+  nickname    String?
+  createdAt   DateTime @default(now())
+
+  @@unique([ownerId, contactUserId])
+}
+
+model Conversation {
+  id          String   @id @default(uuid())
+  isGroup     Boolean  @default(false)
+  title       String?  // used for group chats
+  createdAt   DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+  senderId       String
+  body           String?
+  mediaUrl       String?
+  mediaType      String?      // "image" | "video" | "audio" | "file"
+  status         String       @default("sent") // sent | delivered | read
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
