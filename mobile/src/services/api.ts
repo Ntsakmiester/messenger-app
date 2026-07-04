@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // IMPORTANT: replace with your deployed backend URL.
 // For local testing on a physical phone, use your computer's LAN IP,
 // not "localhost" (the phone can't reach your computer's localhost).
-export const API_BASE_URL = "https://your-backend-domain.example.com";
+export const API_BASE_URL = "https://messenger-app-production-f249.up.railway.app";
 
 export const api = axios.create({ baseURL: API_BASE_URL });
 
