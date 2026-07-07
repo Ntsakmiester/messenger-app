@@ -19,6 +19,7 @@ model User {
   countryCode   String   // e.g. "ZA", "US", "IN" - useful for regional routing/analytics
   lastSeenAt    DateTime @default(now())
   isOnline      Boolean  @default(false)
+  pushToken     String?
   createdAt     DateTime @default(now())
 
   participations ConversationParticipant[]

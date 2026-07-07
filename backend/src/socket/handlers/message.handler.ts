@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { prisma } from "../../db/prisma";
+import { sendPushNotification } from "../../services/push.service";
 
 interface SendMessagePayload {
   conversationId: string;
@@ -48,12 +49,26 @@ export function registerMessageHandlers(io: Server, socket: Socket, userId: stri
 
       const participants = await prisma.conversationParticipant.findMany({
         where: { conversationId: payload.conversationId },
-        select: { userId: true },
+        include: { user: true },
       });
 
       const outgoing = { ...message, clientTempId: payload.clientTempId };
       for (const p of participants) {
         io.to(`user:${p.userId}`).emit("message:new", outgoing);
+      }
+
+      // Notify everyone except the sender. We send regardless of online
+      // status here for simplicity — Expo Go/the OS will just not show a
+      // banner if the app is open and in the foreground on that device.
+      const sender = participants.find((p) => p.userId === userId)?.user;
+      const recipients = participants.filter((p) => p.userId !== userId);
+      for (const recipient of recipients) {
+        sendPushNotification({
+          pushToken: recipient.user.pushToken,
+          title: sender?.displayName ?? "New message",
+          body: payload.body ?? "Sent a message",
+          data: { conversationId: payload.conversationId },
+        });
       }
     } catch (err) {
       console.error("[message:send] error:", err);

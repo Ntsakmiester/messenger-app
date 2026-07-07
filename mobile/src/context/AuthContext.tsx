@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { User } from "../types";
 import { connectSocket, disconnectSocket } from "../services/socket";
+import { registerForPushNotifications } from "../services/pushNotifications";
 
 interface AuthContextValue {
   user: User | null;
@@ -23,14 +24,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (stored && token) {
         setUser(JSON.parse(stored));
         await connectSocket();
+             await registerForPushNotifications();
       }
       setIsLoading(false);
     })();
   }, []);
 
-  async function loginWithUser(newUser: User) {
+async function loginWithUser(newUser: User) {
     setUser(newUser);
     await connectSocket();
+    await registerForPushNotifications();
+
   }
 
   async function logout() {
