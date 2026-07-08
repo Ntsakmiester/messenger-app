@@ -26,4 +26,16 @@ router.get("/me", async (req: AuthedRequest, res: Response) => {
   return res.json(user);
 });
 
-export default router;
+// Called by the mobile app after login (and whenever the token refreshes)
+// so the backend knows where to send push notifications for this user.
+router.post("/push-token", async (req: AuthedRequest, res: Response) => {
+  const { pushToken } = req.body;
+  if (!pushToken) return res.status(400).json({ error: "pushToken is required" });
+
+  await prisma.user.update({
+    where: { id: req.userId! },
+    data: { pushToken },
+  });
+
+  return res.json({ message: "Push token saved" });
+});

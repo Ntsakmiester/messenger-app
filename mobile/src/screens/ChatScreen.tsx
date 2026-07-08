@@ -8,9 +8,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { fetchMessages } from "../services/api";
 import { getSocket } from "../services/socket";
+import { pickAndUploadMedia } from "../services/mediaUpload";
 import { Message } from "../types";
 import { useAuth } from "../context/AuthContext";
 
@@ -19,6 +23,7 @@ export default function ChatScreen({ route, navigation }: any) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [peerTyping, setPeerTyping] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { user } = useAuth();
   const listRef = useRef<FlatList>(null);
 
@@ -35,7 +40,6 @@ export default function ChatScreen({ route, navigation }: any) {
     function onNewMessage(message: Message) {
       if (message.conversationId !== conversationId) return;
       setMessages((prev) => {
-        // Replace optimistic message if this is our own echoed back, else append.
         const withoutOptimistic = prev.filter((m) => m.id !== message.clientTempId);
         return [...withoutOptimistic, message];
       });
@@ -63,8 +67,6 @@ export default function ChatScreen({ route, navigation }: any) {
     if (!socket) return;
 
     const clientTempId = `temp-${Date.now()}`;
-    // Optimistic UI: show the message immediately, then reconcile when the
-    // server echoes it back via "message:new".
     const optimisticMessage: Message = {
       id: clientTempId,
       conversationId,
@@ -87,12 +89,57 @@ export default function ChatScreen({ route, navigation }: any) {
     socket.emit(text.length > 0 ? "typing:start" : "typing:stop", { conversationId });
   }
 
+  async function handleAttachMedia() {
+    try {
+      setIsUploading(true);
+      const picked = await pickAndUploadMedia();
+      if (!picked) return;
+
+      const socket = getSocket();
+      if (!socket) return;
+
+      const clientTempId = `temp-${Date.now()}`;
+      const optimisticMessage: Message = {
+        id: clientTempId,
+        conversationId,
+        senderId: user!.id,
+        mediaUrl: picked.url,
+        mediaType: picked.mediaType,
+        status: "sent",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimisticMessage]);
+
+      socket.emit("message:send", {
+        conversationId,
+        mediaUrl: picked.url,
+        mediaType: picked.mediaType,
+        clientTempId,
+      });
+    } catch (err) {
+      console.error("[media] upload failed:", err);
+      Alert.alert("Upload failed", "Could not send that photo/video. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   const renderItem = useCallback(
     ({ item }: { item: Message }) => {
       const isMine = item.senderId === user?.id;
       return (
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <Text style={isMine ? styles.textMine : styles.textTheirs}>{item.body}</Text>
+          {item.mediaType === "image" && item.mediaUrl && (
+            <Image source={{ uri: item.mediaUrl }} style={styles.mediaImage} />
+          )}
+          {item.mediaType === "video" && item.mediaUrl && (
+            <View style={styles.videoPlaceholder}>
+              <Text style={styles.videoPlaceholderText}>🎥 Video attached</Text>
+            </View>
+          )}
+          {item.body && (
+            <Text style={isMine ? styles.textMine : styles.textTheirs}>{item.body}</Text>
+          )}
         </View>
       );
     },
@@ -114,7 +161,16 @@ export default function ChatScreen({ route, navigation }: any) {
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
       />
       {peerTyping && <Text style={styles.typing}>typing...</Text>}
+      {isUploading && (
+        <View style={styles.uploadingRow}>
+          <ActivityIndicator size="small" color="#128C7E" />
+          <Text style={styles.uploadingText}>Uploading...</Text>
+        </View>
+      )}
       <View style={styles.inputRow}>
+        <TouchableOpacity style={styles.attachButton} onPress={handleAttachMedia} disabled={isUploading}>
+          <Text style={styles.attachButtonText}>📎</Text>
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           value={draft}
@@ -137,6 +193,19 @@ const styles = StyleSheet.create({
   textMine: { color: "#000" },
   textTheirs: { color: "#000" },
   typing: { paddingHorizontal: 14, color: "#999", fontStyle: "italic" },
+  uploadingRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingBottom: 4 },
+  uploadingText: { marginLeft: 8, color: "#999" },
+  mediaImage: { width: 200, height: 200, borderRadius: 8, marginBottom: 6 },
+  videoPlaceholder: {
+    width: 200,
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 6,
+    backgroundColor: "#222",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoPlaceholderText: { color: "#fff" },
   inputRow: {
     flexDirection: "row",
     padding: 10,
@@ -144,6 +213,12 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
     alignItems: "flex-end",
   },
+  attachButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginRight: 4,
+  },
+  attachButtonText: { fontSize: 22 },
   input: {
     flex: 1,
     borderWidth: 1,
