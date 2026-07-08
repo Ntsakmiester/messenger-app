@@ -22,6 +22,14 @@
         "projectId": "360b1fe1-f1fc-49cc-91d9-870b4b56f6a0"
       }
     },
-    "plugins": ["expo-notifications"]
+    "plugins": [
+  "expo-notifications",
+  [
+    "expo-image-picker",
+    {
+      "photosPermission": "Allow the app to access your photos to send them in chats."
+    }
+  ]
+]
   }
 }
