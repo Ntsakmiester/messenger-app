@@ -15,33 +15,50 @@ import {
 import { fetchMessages } from "../services/api";
 import { getSocket } from "../services/socket";
 import { pickAndUploadMedia } from "../services/mediaUpload";
+import { encryptMessage, decryptMessage, getStoredPrivateKey } from "../services/encryption";
 import { Message } from "../types";
 import { useAuth } from "../context/AuthContext";
 
 export default function ChatScreen({ route, navigation }: any) {
-  const { conversationId, title } = route.params;
+  const { conversationId, title, otherUserPublicKey } = route.params;
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [peerTyping, setPeerTyping] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [myPrivateKey, setMyPrivateKey] = useState<string | null>(null);
   const { user } = useAuth();
   const listRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    getStoredPrivateKey().then(setMyPrivateKey);
+  }, []);
+
+  function decryptIncoming(message: Message): Message {
+    if (!message.body || !otherUserPublicKey || !myPrivateKey) return message;
+    const plaintext = decryptMessage(message.body, otherUserPublicKey, myPrivateKey);
+    return { ...message, body: plaintext ?? "🔒 Unable to decrypt message" };
+  }
 
   useEffect(() => {
     navigation.setOptions({ title });
   }, [title]);
 
   useEffect(() => {
-    fetchMessages(conversationId).then(setMessages);
+    if (!myPrivateKey) return;
+
+    fetchMessages(conversationId).then((history: Message[]) => {
+      setMessages(history.map(decryptIncoming));
+    });
 
     const socket = getSocket();
     if (!socket) return;
 
     function onNewMessage(message: Message) {
       if (message.conversationId !== conversationId) return;
+      const decrypted = decryptIncoming(message);
       setMessages((prev) => {
         const withoutOptimistic = prev.filter((m) => m.id !== message.clientTempId);
-        return [...withoutOptimistic, message];
+        return [...withoutOptimistic, decrypted];
       });
     }
 
@@ -57,7 +74,7 @@ export default function ChatScreen({ route, navigation }: any) {
       socket.off("message:new", onNewMessage);
       socket.off("typing:update", onTypingUpdate);
     };
-  }, [conversationId]);
+  }, [conversationId, myPrivateKey]);
 
   function handleSend() {
     const trimmed = draft.trim();
@@ -78,7 +95,14 @@ export default function ChatScreen({ route, navigation }: any) {
     setMessages((prev) => [...prev, optimisticMessage]);
     setDraft("");
 
-    socket.emit("message:send", { conversationId, body: trimmed, clientTempId });
+    let outgoingBody = trimmed;
+    if (otherUserPublicKey && myPrivateKey) {
+      outgoingBody = encryptMessage(trimmed, otherUserPublicKey, myPrivateKey);
+    } else {
+      console.warn("[chat] Sending unencrypted — missing keys");
+    }
+
+    socket.emit("message:send", { conversationId, body: outgoingBody, clientTempId });
     socket.emit("typing:stop", { conversationId });
   }
 

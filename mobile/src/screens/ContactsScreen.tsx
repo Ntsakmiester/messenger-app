@@ -14,6 +14,7 @@ export default function ContactsScreen({ navigation }: any) {
       navigation.navigate("Chat", {
         conversationId: conversation.id,
         title: foundUser.displayName,
+        otherUserPublicKey: foundUser.publicKey,
       });
     } catch (err: any) {
       Alert.alert(

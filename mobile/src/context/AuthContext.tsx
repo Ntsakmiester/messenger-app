@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { User } from "../types";
 import { connectSocket, disconnectSocket } from "../services/socket";
 import { registerForPushNotifications } from "../services/pushNotifications";
+import { ensureKeyPair } from "../services/encryption";
 
 interface AuthContextValue {
   user: User | null;
@@ -24,17 +25,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (stored && token) {
         setUser(JSON.parse(stored));
         await connectSocket();
-             await registerForPushNotifications();
+        await registerForPushNotifications();
+        try {
+          await ensureKeyPair();
+        } catch (err) {
+          console.error("[auth] Failed to set up encryption keys:", err);
+        }
       }
       setIsLoading(false);
     })();
   }, []);
 
-async function loginWithUser(newUser: User) {
+  async function loginWithUser(newUser: User) {
     setUser(newUser);
     await connectSocket();
     await registerForPushNotifications();
-
+    try {
+      await ensureKeyPair();
+    } catch (err) {
+      console.error("[auth] Failed to set up encryption keys:", err);
+    }
   }
 
   async function logout() {

@@ -19,7 +19,8 @@ model User {
   countryCode   String   // e.g. "ZA", "US", "IN" - useful for regional routing/analytics
   lastSeenAt    DateTime @default(now())
   isOnline      Boolean  @default(false)
-  pushToken     String?
+  pushToken     String?  // Expo push token for this device, used to send notifications
+  publicKey     String?  // Base64 public key for end-to-end encryption
   createdAt     DateTime @default(now())
 
   participations ConversationParticipant[]

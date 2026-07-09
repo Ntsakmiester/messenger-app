@@ -5,6 +5,7 @@ export interface User {
   avatarUrl?: string;
   countryCode: string;
   isOnline?: boolean;
+  publicKey?: string;
 }
 
 export interface Message {
